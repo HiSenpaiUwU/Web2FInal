@@ -1,0 +1,95 @@
+<?php
+require __DIR__ . '/config.php';
+require __DIR__ . '/database_upgrade.php';
+
+try {
+    $p = db();
+    apply_database_upgrade($p);
+} catch (Throwable $e) {
+    exit('Directory unavailable.');
+}
+
+if (!is_role('customer')) {
+    flash('Customer access is required.', 'error');
+    redirect('index.php?page=login');
+}
+
+$u = user();
+$q = $p->prepare('SELECT b.*, c.name category FROM favorites f JOIN businesses b ON b.id=f.business_id JOIN categories c ON c.id=b.category_id WHERE f.user_id=? ORDER BY f.created_at DESC LIMIT 6');
+$q->execute([$u['id']]);
+$favorites = $q->fetchAll();
+$q = $p->prepare('SELECT i.*, b.name business FROM inquiries i JOIN businesses b ON b.id=i.business_id WHERE i.user_id=? ORDER BY i.created_at DESC LIMIT 8');
+$q->execute([$u['id']]);
+$inquiries = $q->fetchAll();
+$q = $p->prepare('SELECT COUNT(*) FROM messages WHERE receiver_id=? AND read_at IS NULL');
+$q->execute([$u['id']]);
+$unreadMessages = (int) $q->fetchColumn();
+$new = $p->query("SELECT b.*, c.name category FROM businesses b JOIN categories c ON c.id=b.category_id WHERE b.status='approved' ORDER BY b.created_at DESC LIMIT 6")->fetchAll();
+$categories = $p->query('SELECT id, name FROM categories WHERE active=1 ORDER BY name LIMIT 8')->fetchAll();
+$customerCssVersion = filemtime(__DIR__ . '/customer.css');
+?>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Discover | Davao Local</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="admin.css">
+  <link rel="stylesheet" href="customer.css?v=<?= $customerCssVersion ?>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <main class="admin-main standalone customer-dashboard">
+    <div class="customer-nav">
+      <a class="brand" href="index.php"><span class="brand-mark">D</span>Davao <b>Local</b></a>
+      <nav aria-label="Customer navigation">
+        <a href="index.php?page=directory">Directory</a>
+        <a href="#saved">Saved</a>
+        <a href="messages.php" class="message-nav">Messages<?php if ($unreadMessages): ?><span><?= $unreadMessages ?></span><?php endif ?></a>
+        <a href="index.php?action=logout">Log out</a>
+      </nav>
+    </div>
+    <header class="customer-hero">
+      <p class="eyebrow">CUSTOMER DASHBOARD</p>
+      <h1>Discover Davao, <?= e(explode(' ', $u['name'])[0]) ?>.</h1>
+      <p>Find businesses, products, and services worth coming back to.</p>
+      <form action="index.php" class="customer-search">
+        <input type="hidden" name="page" value="directory">
+        <label class="search-label"><span aria-hidden="true">⌕</span><input name="q" aria-label="Search businesses, products, or services" placeholder="Search businesses, products, or services"></label>
+        <button class="button coral">Search</button>
+      </form>
+      <a class="customer-directory-link" href="index.php?page=directory">Explore all businesses →</a>
+      <section class="category-shortcuts" aria-labelledby="browse-categories">
+        <h2 id="browse-categories">Browse by category</h2>
+        <div><?php foreach ($categories as $c): ?><a href="index.php?page=directory&category=<?= $c['id'] ?>"><?= e($c['name']) ?></a><?php endforeach ?></div>
+        <a class="location-shortcut" href="index.php?page=directory">📍 Explore businesses in Davao</a>
+      </section>
+    </header>
+    <?php if ($f = take_flash()): ?><div class="flash <?= e($f[1]) ?>"><?= e($f[0]) ?></div><?php endif ?>
+    <section class="panel">
+      <h2>New businesses</h2>
+      <div class="cards">
+        <?php foreach ($new as $b): ?><article class="business-card"><div class="card-content"><span class="pill"><?= e($b['category']) ?></span><h3><?= e($b['name']) ?></h3><p><?= e($b['description']) ?></p><a class="text-link" href="index.php?page=business&id=<?= $b['id'] ?>">View business →</a></div></article><?php endforeach ?>
+      </div>
+    </section>
+    <section class="panel" id="saved">
+      <h2>Saved businesses</h2>
+      <div class="cards">
+        <?php foreach ($favorites as $b): ?><article class="business-card"><div class="card-content"><span class="pill"><?= e($b['category']) ?></span><h3><?= e($b['name']) ?></h3><p>📍 <?= e($b['barangay']) ?>, Davao City</p><a class="text-link" href="index.php?page=business&id=<?= $b['id'] ?>">View business →</a></div></article><?php endforeach ?>
+        <?php if (!$favorites): ?><p class="empty">No favorites yet. Save businesses from their profile to find them here.</p><?php endif ?>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>My inquiry history</h2>
+      <p class="inquiry-help">Every inquiry opens a private message thread. Owner replies appear in <a href="messages.php">Messages</a>.</p>
+      <div class="table-wrap"><table>
+        <tr><th>Business</th><th>Subject</th><th>Status</th><th>Sent</th></tr>
+        <?php foreach ($inquiries as $i): ?><tr><td><?= e($i['business']) ?></td><td><?= e($i['subject']) ?></td><td><span class="status <?= e($i['status']) ?>"><?= e($i['status']) ?></span></td><td><?= e(date('M j, Y g:i A', strtotime($i['created_at']))) ?></td></tr><?php endforeach ?>
+        <?php if (!$inquiries): ?><tr><td colspan="4">No inquiries yet. Contact a business from its profile when you have a question.</td></tr><?php endif ?>
+      </table></div>
+    </section>
+  </main>
+</body>
+</html>

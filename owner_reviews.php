@@ -1,0 +1,12 @@
+<?php
+require __DIR__.'/config.php'; require __DIR__.'/owner_layout.php';
+try{$pdo=db();}catch(Throwable $e){http_response_code(503);exit('Reviews are unavailable. Please try again later.');}
+if(!is_role('owner')){flash('Business owner access is required.','error');redirect('index.php?page=login');}
+$u=user();
+if($_SERVER['REQUEST_METHOD']==='POST'){verify_csrf();$review=(int)($_POST['review_id']??0);$reply=trim($_POST['response']??'');if($reply===''||mb_strlen($reply)>1000){flash('Write a reply of up to 1,000 characters.','error');redirect('owner_reviews.php');}$q=$pdo->prepare('SELECT r.id,r.user_id,b.name FROM reviews r JOIN businesses b ON b.id=r.business_id WHERE r.id=? AND b.owner_id=?');$q->execute([$review,$u['id']]);$row=$q->fetch();if(!$row){http_response_code(403);exit('Not permitted.');}$pdo->prepare('UPDATE reviews SET response=? WHERE id=?')->execute([$reply,$review]);$pdo->prepare('INSERT INTO notifications(user_id,message)VALUES(?,?)')->execute([$row['user_id'],'A business owner replied to your review of '.$row['name'].'.']);flash('Review reply saved.');redirect('owner_reviews.php');}
+$q=$pdo->prepare('SELECT r.*,b.name business,cu.name customer FROM reviews r JOIN businesses b ON b.id=r.business_id JOIN users cu ON cu.id=r.user_id WHERE b.owner_id=? ORDER BY r.created_at DESC');$q->execute([$u['id']]);$reviews=$q->fetchAll();$q=$pdo->prepare('SELECT id FROM businesses WHERE owner_id=? ORDER BY updated_at DESC');$q->execute([$u['id']]);$firstBusiness=(int)$q->fetchColumn();
+ob_start();
+?>
+<section class="panel"><h2>Customer reviews</h2><?php foreach($reviews as $r):?><article class="owner-review"><header><div><b><?=e($r['customer'])?></b><small><?=e($r['business'])?> · <?=e(date('M j, Y',strtotime($r['created_at'])))?></small></div><strong>★ <?=$r['rating']?>/5</strong></header><p><?=e($r['comment'])?></p><form method="post"><input type="hidden" name="csrf" value="<?=csrf()?>"><input type="hidden" name="review_id" value="<?=$r['id']?>"><label>Your public reply<textarea maxlength="1000" name="response" required><?=e($r['response'])?></textarea></label><button class="button dark"><?= $r['response']?'Update reply':'Reply to review'?></button></form></article><?php endforeach;if(!$reviews):?><p class="empty">No reviews yet. Reviews from customers will appear here.</p><?php endif?></section>
+<?php
+owner_page('Reviews',ob_get_clean(),'reviews',$firstBusiness);
