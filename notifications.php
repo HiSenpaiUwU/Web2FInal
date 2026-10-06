@@ -9,4 +9,4 @@ ob_start();
 <?php
 $content=ob_get_clean();ob_start();?><form method="post" class="header-action"><input type="hidden" name="csrf" value="<?=csrf()?>"><button name="action" value="all" class="button light">Mark all as read</button></form><?php $headerAction=ob_get_clean();
 if($owner)owner_page('Notifications',$content,'notifications',$firstBusiness,$headerAction);
-customer_page('Notifications',$content,$unreadMessages,$headerAction);
+customer_page('Notifications',$content,$unreadMessages,$headerAction,'notifications');

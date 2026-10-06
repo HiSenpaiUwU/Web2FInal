@@ -24,8 +24,29 @@ function apply_database_upgrade(PDO $pdo): void {
     $productHas = function(string $column) use ($columns): bool { $columns->execute(['products',$column]); return (bool)$columns->fetchColumn(); };
     if (!$productHas('image_path')) $pdo->exec('ALTER TABLE products ADD image_path VARCHAR(255) NULL AFTER description');
     if (!$productHas('is_featured')) $pdo->exec('ALTER TABLE products ADD is_featured BOOLEAN NOT NULL DEFAULT FALSE AFTER availability');
+    $table->execute(['support_conversations']);
+    $supportConversationsCreated = !$table->fetchColumn();
+    if ($supportConversationsCreated) $pdo->exec('CREATE TABLE support_conversations (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,user_id INT UNSIGNED NULL,visitor_token VARCHAR(64) NULL,title VARCHAR(120) NOT NULL DEFAULT "New chat",created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,INDEX(user_id),INDEX(visitor_token),INDEX(updated_at),FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE)');
+    $conversationUniqueIndexes = $pdo->query("SELECT INDEX_NAME,GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) columns_used FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='support_conversations' AND NON_UNIQUE=0 AND INDEX_NAME<>'PRIMARY' GROUP BY INDEX_NAME")->fetchAll();
+    foreach ($conversationUniqueIndexes as $uniqueIndex) {
+        $indexedColumns = explode(',', $uniqueIndex['columns_used']);
+        if (count($indexedColumns) !== 1 || !in_array($indexedColumns[0], ['user_id','visitor_token'], true)) continue;
+        $lookupName = 'support_conversations_' . $indexedColumns[0] . '_lookup';
+        $lookup = $pdo->prepare('SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND INDEX_NAME=?');
+        $lookup->execute(['support_conversations',$lookupName]);
+        if (!$lookup->fetchColumn()) $pdo->exec('ALTER TABLE support_conversations ADD INDEX `' . $lookupName . '` (`' . $indexedColumns[0] . '`)');
+        $pdo->exec('ALTER TABLE support_conversations DROP INDEX `' . str_replace('`', '``', $uniqueIndex['INDEX_NAME']) . '`');
+    }
     $table->execute(['support_messages']);
-    if (!$table->fetchColumn()) $pdo->exec('CREATE TABLE support_messages (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,user_id INT UNSIGNED NULL,visitor_token VARCHAR(64) NULL,sender ENUM("user","bot") NOT NULL,message TEXT NOT NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL,INDEX(user_id),INDEX(visitor_token))');
+    if (!$table->fetchColumn()) $pdo->exec('CREATE TABLE support_messages (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,conversation_id INT UNSIGNED NULL,user_id INT UNSIGNED NULL,visitor_token VARCHAR(64) NULL,sender ENUM("user","bot") NOT NULL,message TEXT NOT NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL,INDEX(conversation_id),INDEX(user_id),INDEX(visitor_token))');
+    $supportMessagesConversationAdded = !$has('support_messages','conversation_id');
+    if ($supportMessagesConversationAdded) $pdo->exec('ALTER TABLE support_messages ADD conversation_id INT UNSIGNED NULL AFTER id, ADD INDEX (conversation_id)');
+    if ($supportConversationsCreated || $supportMessagesConversationAdded) {
+        $pdo->exec("INSERT INTO support_conversations(user_id,visitor_token,title) SELECT DISTINCT user_id,NULL,'Previous support chat' FROM support_messages WHERE user_id IS NOT NULL");
+        $pdo->exec("INSERT INTO support_conversations(user_id,visitor_token,title) SELECT DISTINCT NULL,visitor_token,'Previous support chat' FROM support_messages WHERE visitor_token IS NOT NULL");
+        $pdo->exec('UPDATE support_messages m JOIN support_conversations c ON c.user_id=m.user_id SET m.conversation_id=c.id WHERE m.conversation_id IS NULL AND m.user_id IS NOT NULL');
+        $pdo->exec('UPDATE support_messages m JOIN support_conversations c ON c.visitor_token=m.visitor_token SET m.conversation_id=c.id WHERE m.conversation_id IS NULL AND m.visitor_token IS NOT NULL');
+    }
     $table->execute(['conversations']);
     if (!$table->fetchColumn()) $pdo->exec('CREATE TABLE conversations (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,business_id INT UNSIGNED NOT NULL,customer_id INT UNSIGNED NOT NULL,owner_id INT UNSIGNED NOT NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,UNIQUE(business_id,customer_id),FOREIGN KEY(business_id) REFERENCES businesses(id) ON DELETE CASCADE,FOREIGN KEY(customer_id) REFERENCES users(id) ON DELETE CASCADE,FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE)');
     $table->execute(['messages']);

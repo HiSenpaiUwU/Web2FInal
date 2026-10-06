@@ -1,6 +1,7 @@
 <?php
 require __DIR__ . '/config.php';
 require __DIR__ . '/database_upgrade.php';
+require __DIR__ . '/customer_layout.php';
 
 try {
     $p = db();
@@ -42,15 +43,7 @@ $customerCssVersion = filemtime(__DIR__ . '/customer.css');
 </head>
 <body>
   <main class="admin-main standalone customer-dashboard">
-    <div class="customer-nav">
-      <a class="brand" href="index.php"><span class="brand-mark">D</span>Davao <b>Local</b></a>
-      <nav aria-label="Customer navigation">
-        <a href="index.php?page=directory">Directory</a>
-        <a href="#saved">Saved</a>
-        <a href="messages.php" class="message-nav">Messages<?php if ($unreadMessages): ?><span><?= $unreadMessages ?></span><?php endif ?></a>
-        <a href="index.php?action=logout">Log out</a>
-      </nav>
-    </div>
+    <?php customer_nav($unreadMessages, 'dashboard'); ?>
     <header class="customer-hero">
       <p class="eyebrow">CUSTOMER DASHBOARD</p>
       <h1>Discover Davao, <?= e(explode(' ', $u['name'])[0]) ?>.</h1>

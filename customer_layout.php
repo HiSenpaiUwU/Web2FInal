@@ -4,7 +4,7 @@ function customer_nav(int $unreadMessages, string $active = ''): void {
 ?>
 <div class="customer-nav">
   <a class="brand" href="index.php"><span class="brand-mark">D</span>Davao <b>Local</b></a>
-  <nav aria-label="Customer navigation"><a href="index.php?page=directory">Directory</a><a href="customer.php#saved">Saved</a><a href="messages.php" class="message-nav <?= $active === 'messages' ? 'active' : '' ?>">Messages<?php if($unreadMessages):?><span><?=$unreadMessages?></span><?php endif?></a><a href="index.php?action=logout">Log out</a></nav>
+  <nav aria-label="Customer navigation"><a class="<?= $active === 'dashboard' ? 'active' : '' ?>" href="customer.php">Dashboard</a><a class="<?= $active === 'directory' ? 'active' : '' ?>" href="index.php?page=directory">Directory</a><a class="<?= $active === 'map' ? 'active' : '' ?>" href="index.php?page=map">Map</a><a href="customer.php#saved">Saved</a><a href="messages.php" class="message-nav <?= $active === 'messages' ? 'active' : '' ?>">Messages<?php if($unreadMessages):?><span><?=$unreadMessages?></span><?php endif?></a><a class="<?= $active === 'notifications' ? 'active' : '' ?>" href="notifications.php">Notifications</a><a href="index.php?action=logout">Log out</a></nav>
 </div>
 <?php
 }

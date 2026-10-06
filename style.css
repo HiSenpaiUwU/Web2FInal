@@ -36,6 +36,18 @@ main>section,.site-header,footer{padding-left:var(--page-gutter);padding-right:v
 footer{min-height:86px;padding-top:20px;padding-bottom:20px}
 @media(max-width:760px){:root{--page-gutter:18px}.hero{min-height:500px}.hero-copy{padding:72px 0 62px}.quick-search{align-items:stretch;flex-direction:column;padding:8px}.quick-search input{height:40px;padding:0 8px}.quick-search .button{width:100%}.directory{padding-top:48px;padding-bottom:52px}.auth{padding-top:48px!important;padding-bottom:52px!important}.auth .registration-form{padding:21px}.section-title{align-items:flex-start}.section-title .button{margin-top:18px}}
 
+/* Compact two-panel sign-in, using the existing Davao Local palette. */
+.auth.login-auth{width:min(820px,calc(100% - (var(--page-gutter) * 2)));min-height:0;margin:0 auto;padding:30px 0 34px!important;display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,.95fr);align-items:stretch;gap:0}
+.login-welcome{display:flex;flex-direction:column;justify-content:center;min-height:286px;padding:28px clamp(24px,3vw,42px);background:var(--ink);color:#fff;border-radius:10px 0 0 10px;position:relative;overflow:hidden}
+.login-welcome:after{content:"D";position:absolute;right:12px;bottom:-100px;color:#ffffff0c;font:700 280px Fraunces,serif;line-height:1}
+.login-welcome .eyebrow{color:#f4c36d;margin-bottom:10px;position:relative;z-index:1}.login-welcome h1{font:600 clamp(32px,3vw,42px)/1.06 Fraunces,serif;letter-spacing:-.8px;margin:0;position:relative;z-index:1}.login-welcome>p:not(.eyebrow){max-width:310px;color:#d4e1dc;font-size:13px;line-height:1.5;margin:11px 0 13px;position:relative;z-index:1}.login-welcome>a{color:#f4c36d;font-size:12px;font-weight:700;text-decoration:none;position:relative;z-index:1}
+.login-auth .registration-form{display:flex;flex-direction:column;justify-content:center;padding:25px clamp(22px,3vw,34px);border:1px solid var(--border);border-left:0;border-radius:0 10px 10px 0;box-shadow:0 6px 16px rgba(22,60,56,.04)}.login-auth .registration-form h2{font:600 22px/1.2 Fraunces,serif;letter-spacing:-.3px;margin:0 0 16px}.login-auth .registration-form label{margin-bottom:10px}.login-auth .registration-form input{height:36px;padding:6px 0}.login-auth .registration-form .button{margin-top:2px}.auth-switch{margin:11px 0 0;text-align:center;color:var(--muted);font-size:11px}.auth-switch a{color:var(--coral);font-weight:700;text-decoration:none}
+@media(max-width:760px){.auth.login-auth{width:min(460px,calc(100% - 36px));padding:20px 0 30px!important;grid-template-columns:1fr}.login-welcome{min-height:0;padding:22px 23px;border-radius:9px 9px 0 0}.login-welcome h1{font-size:32px}.login-welcome>p:not(.eyebrow){margin:9px 0 11px}.login-auth .registration-form{padding:21px;border-left:1px solid var(--border);border-top:0;border-radius:0 0 9px 9px}.login-auth .registration-form h2{margin-bottom:15px}}
+
+/* Shared spacing trim for page sections and management screens. */
+.directory{padding-top:50px;padding-bottom:56px}.how{padding-top:50px;padding-bottom:52px}.register{padding-top:50px;padding-bottom:52px}
+@media(max-width:760px){.directory{padding-top:38px;padding-bottom:42px}.how,.register{padding-top:40px;padding-bottom:42px}}
+
 /* The standalone customer dashboard also loads this shared stylesheet. */
 .customer-dashboard{width:min(var(--page-width),calc(100% - 48px))!important;max-width:none!important;margin:0 auto!important;padding:0 0 64px!important}
 .customer-nav{min-height:70px;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:0!important;border-bottom:1px solid var(--border)}
