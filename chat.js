@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeConversation = null;
   let conversations = [];
   let historyRequest = 0;
+  let csrfToken = '';
 
   const scrollLatest = () => { log.scrollTop = log.scrollHeight; };
   const openChat = (open) => {
@@ -146,6 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const result = await response.json();
       if (requestId !== historyRequest) return;
       if (!response.ok || !result.ok) throw new Error(result.reply || 'Support history could not load.');
+      csrfToken = result.csrf || csrfToken;
       activeConversation = result.conversation ? Number(result.conversation.id) : null;
       conversations = result.conversations || conversations;
       renderConversations();
@@ -163,11 +165,12 @@ document.addEventListener('DOMContentLoaded', () => {
   newChat.addEventListener('click', async () => {
     if (loading) return;
     newChat.disabled = true;
-    const data = new FormData(); data.append('action', 'new');
+    const data = new FormData(); data.append('action', 'new'); data.append('csrf', csrfToken);
     try {
       const response = await fetch('chat.php', { method: 'POST', body: data, headers: { Accept: 'application/json' } });
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.reply || 'A new conversation could not be started.');
+      csrfToken = result.csrf || csrfToken;
       await loadHistory(Number(result.conversation.id)); box.classList.remove('show-history'); input.focus();
     } catch (error) { addMessage(error.message || 'A new conversation could not be started.', 'assistant', '', { error: true }); }
     finally { newChat.disabled = false; }
@@ -180,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
     event.preventDefault(); const message = input.value.trim(); if (!message || loading) return;
     log.querySelector('.chat-empty')?.remove(); addMessage(message, 'user', 'You'); input.value = ''; input.style.height = 'auto';
     const pending = addMessage('Finding the right help information…', 'assistant', '', { pending: true }); setBusy(true); newChat.disabled = true;
-    const data = new FormData(); data.append('message', message); if (activeConversation) data.append('conversation', String(activeConversation));
+    const data = new FormData(); data.append('csrf', csrfToken); data.append('message', message); if (activeConversation) data.append('conversation', String(activeConversation));
     try {
       const response = await fetch('chat.php', { method: 'POST', body: data, headers: { Accept: 'application/json' } });
       const result = await response.json(); pending.remove();
