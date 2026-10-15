@@ -1,43 +1,46 @@
 # Davao Local Directory
 
-A working PHP + MySQL directory for small businesses in Davao City.
+A local PHP + MySQL directory application for finding businesses in Davao City. It includes public browsing, customer accounts, owner listing tools, and an administrator review console.
 
-## Setup
+## Run locally with XAMPP
 
-1. Start **Apache** and **MySQL** in XAMPP.
-2. Open `http://localhost/final-project-mel-main/setup.php` once.
-3. Open `http://localhost/final-project-mel-main/`.
+1. Open XAMPP Control Panel and start **Apache** and **MySQL**.
+2. Open `http://localhost/Web2Final-main/setup.php` once for a fresh local database. Setup uses `CREATE TABLE IF NOT EXISTS`, repeat-safe migrations, and insert-if-missing sample data; it does not drop or reset the database.
+3. Open `http://localhost/Web2Final-main/`.
+4. For an existing installation, open `http://localhost/Web2Final-main/upgrade.php` to apply repeat-safe schema additions before testing newer features.
 
-The setup page creates the SQL database, tables, roles, categories, sample business, demo accounts, and 40 additional fictional Davao directory listings.
+Default database connection values are in `config.php` (`127.0.0.1`, database `davao_local_directory`, XAMPP's default `root` with a blank password). Change these only to match your local MySQL setup.
+
+### Fresh-install classroom accounts
 
 | Role | Email | Password |
 |---|---|---|
 | Administrator | `admin@davaolocal.test` | `Admin123!` |
 | Business owner | `owner@davaolocal.test` | `Owner123!` |
+| Demo customer | `demo.customer@davaolocal.test` | `DemoCustomer123!` |
 
-## Included working features
+The demo credentials are for local classroom use only. Existing accounts keep their existing passwords; rerunning setup does not reset them.
+This working database also has a workflow test customer: `classroom.customer@davaolocal.test` / `ClassroomDemo123!`. It is labeled as a classroom demo account. The public listing named “Fictional classroom workflow listing” is also test data and is marked **Fictional demo**.
 
-- SQL-backed customer and business owner registration/login
-- Public business directory with keyword, category, and area search
-- Owner business listing creation and service tagging
-- Admin approval/rejection workflow; only approved listings appear publicly
-- Business profile with contact details, OpenStreetMap location/directions, reviews, favorites, and customer inquiries
-- In-app notifications and role-specific dashboards
+## Current features
 
-## Adding the demo directory data later
+- Public home page and approved-business directory with search across business names, descriptions, products, and services; category, area, rating, owner verification, hours, contact, map-location, services, price, and sort filters.
+- Business profiles with services, owner-set status and weekly hours, customer reviews, favorites, inquiries/private messages, appointment requests, and reports.
+- OpenStreetMap/Leaflet map at `index.php?page=map`. It shows approved non-sample listings only when valid coordinates were saved. It never geocodes or invents business coordinates. Tile and location-permission failures leave directory/profile links available.
+- Customer registration, sign-in, saved businesses, reviews, inquiries/messages, notifications, and appointment history.
+- Owner listing submission (new listings stay pending), profile/hours/services/products/gallery management, messages, reviews, and appointment management.
+- Administrator approval/rejection and a separate verification control, plus user/category/review/report management.
 
-Open `http://localhost/final-project-mel-main/demo_seed.php`. The seeder is repeat-safe: it checks each business name before inserting, so it will not delete or duplicate Maria's Printing Services, existing users, categories, reviews, or other records.
+## Fictional sample data
 
-## Administration upgrade
+Setup creates clearly marked fictional sample businesses and demo accounts for practice. Sample business cards and profiles display **Fictional demo**; sample data does not represent real businesses or usable contact details. Sample listings are excluded from the public map even if older records contain coordinates. Do not use sample addresses, phone numbers, or reviews as real-world information.
 
-After an existing installation, open `http://localhost/final-project-mel-main/upgrade.php` once. This repeat-safe migration adds account-status, last-login, and business rejection-reason fields without deleting or recreating any table or record.
+To add the fictional sample directory later, use `http://localhost/Web2Final-main/demo_seed.php`. The seeder is repeat-safe and does not delete records. It creates demonstration content only; it does not create real businesses or real map locations.
 
-Administrators are sent to the upgraded console at `admin.php`; business owners are sent to `owner.php`. Both use the same persistent `users`, `businesses`, reviews, categories, notifications, and activity-log data already used by the directory.
+## Data preservation
 
-`schema.sql` contains the normalized MySQL schema. Change database credentials in `config.php` if your XAMPP MySQL installation differs from the normal `root` / blank-password setup.
+`setup.php` and `upgrade.php` do not drop or recreate existing tables. Schema upgrades add missing columns/tables and mark known fixtures as sample records. Avoid manual database resets. Owner-submitted listings remain pending until an administrator approves them.
 
-## Feature upgrade migration
+## Map notes
 
-For an existing installation, open `http://localhost/final-project-mel-main/upgrade.php` once after pulling these changes. The migration is repeat-safe and preserves existing data. It adds verified-business status, gallery storage metadata, report and review-report tables, view analytics, appointment records, and richer notification links.
-
-Business owners manage logos and gallery images from **Owner dashboard → My Business → Manage gallery**. Customers can request appointments from an approved business profile and review their requests in `appointments.php`; owners use the same page to manage requests. Customer business reports are sent from the business profile and administrators manage them at `admin.php?view=reports`.
+Map tiles come from the community OpenStreetMap tile service and require internet access. OpenStreetMap attribution is shown on the map. Tile availability is best-effort; when tiles are blocked or offline, the mapped-business links and directory remain usable. Real marker testing requires an approved non-sample listing with coordinates supplied by its owner/admin.

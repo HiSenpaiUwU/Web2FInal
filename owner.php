@@ -24,6 +24,48 @@ $firstBusiness = (int)($businesses[0]['id'] ?? 0);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     $action = $_POST['action'] ?? '';
+    if ($action === 'create') {
+        $categoryId = (int)($_POST['category_id'] ?? 0);
+        $categoryCheck = $pdo->prepare('SELECT id FROM categories WHERE id=? AND active=1');
+        $categoryCheck->execute([$categoryId]);
+        $lat = trim($_POST['latitude'] ?? '');
+        $lng = trim($_POST['longitude'] ?? '');
+        $coordinatesValid = ($lat === '' && $lng === '') || ($lat !== '' && $lng !== '' && is_numeric($lat) && is_numeric($lng) && abs((float)$lat) <= 90 && abs((float)$lng) <= 180);
+        $email = trim($_POST['contact_email'] ?? '');
+        if (!$categoryCheck->fetchColumn() || !$coordinatesValid || ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL))) {
+            flash('Choose an active category, enter a valid email, and provide both valid coordinates or neither.', 'error');
+            redirect('owner.php?add=1');
+        }
+        foreach (['name','contact_phone','address','barangay'] as $field) {
+            if (!trim($_POST[$field] ?? '')) {
+                flash('Complete all required business details.', 'error');
+                redirect('owner.php?add=1');
+            }
+        }
+        $servicesToAdd = array_values(array_unique(array_filter(array_map('trim', explode(',', $_POST['services'] ?? '')))));
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare('INSERT INTO businesses(owner_id,category_id,name,description,contact_phone,contact_email,address,barangay,district,city,latitude,longitude) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')->execute([
+                $u['id'], $categoryId, mb_strimwidth(trim($_POST['name']), 0, 150, ''), trim($_POST['description'] ?? ''),
+                trim($_POST['contact_phone']), $email !== '' ? $email : null, trim($_POST['address']), trim($_POST['barangay']),
+                trim($_POST['district'] ?? ''), 'Davao City', $lat !== '' ? $lat : null, $lng !== '' ? $lng : null
+            ]);
+            $newBusinessId = (int)$pdo->lastInsertId();
+            foreach ($servicesToAdd as $serviceName) {
+                $pdo->prepare('INSERT IGNORE INTO services(name) VALUES(?)')->execute([$serviceName]);
+                $serviceQuery = $pdo->prepare('SELECT id FROM services WHERE name=?');
+                $serviceQuery->execute([$serviceName]);
+                $pdo->prepare('INSERT IGNORE INTO business_services(business_id,service_id) VALUES(?,?)')->execute([$newBusinessId, $serviceQuery->fetchColumn()]);
+            }
+            $pdo->commit();
+        } catch (Throwable $error) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $error;
+        }
+        audit($pdo, (int)$u['id'], 'Business created', 'Business #' . $newBusinessId);
+        flash('Listing submitted for admin approval. You can manage it here while it is under review.');
+        redirect('owner.php?edit=' . $newBusinessId);
+    }
     if ($action === 'profile') {
         $name = trim($_POST['name'] ?? '');
         $email = filter_var($_POST['email'] ?? '', FILTER_VALIDATE_EMAIL);
@@ -36,6 +78,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('Profile updated.');
         }
         redirect('owner.php#profile');
+    }
+    if ($action === 'bulk_delete_businesses') {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $_POST['business_ids'] ?? []), fn($id) => $id > 0)));
+        if (!$ids) { flash('Select at least one business to remove.', 'error'); redirect('owner.php'); }
+        $marks = implode(',', array_fill(0, count($ids), '?'));
+        $q = $pdo->prepare("SELECT id FROM businesses WHERE owner_id=? AND id IN ($marks)");
+        $q->execute(array_merge([$u['id']], $ids));
+        $ownedIds = array_map('intval', $q->fetchAll(PDO::FETCH_COLUMN));
+        if (count($ownedIds) !== count($ids)) { http_response_code(403); exit('One or more selected businesses are not yours.'); }
+        $marks = implode(',', array_fill(0, count($ownedIds), '?'));
+        $pdo->beginTransaction();
+        try { $pdo->prepare("DELETE FROM businesses WHERE owner_id=? AND id IN ($marks)")->execute(array_merge([$u['id']], $ownedIds)); $pdo->commit(); }
+        catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
+        flash(count($ownedIds) . ' business listing(s) removed.');
+        redirect('owner.php');
+    }
+    if ($action === 'delete_business') {
+        $id = (int)($_POST['id'] ?? 0);
+        $q = $pdo->prepare('SELECT name FROM businesses WHERE id=? AND owner_id=?'); $q->execute([$id, $u['id']]);
+        $name = $q->fetchColumn();
+        if (!$name || ($_POST['confirm_name'] ?? '') !== $name) { flash('Type the exact business name to confirm removal.', 'error'); redirect('owner.php?edit='.$id); }
+        $pdo->prepare('DELETE FROM businesses WHERE id=? AND owner_id=?')->execute([$id, $u['id']]);
+        flash('Business listing and its related directory content were removed.'); redirect('owner.php');
     }
     $businessId = (int)($_POST['id'] ?? 0);
     $owned = $pdo->prepare('SELECT id FROM businesses WHERE id=? AND owner_id=?');
@@ -51,13 +116,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 redirect('owner.php?edit='.$businessId);
             }
         }
+        $lat=trim($_POST['latitude'] ?? ''); $lng=trim($_POST['longitude'] ?? '');
+        $coordsValid=($lat===''&&$lng==='')||($lat!==''&&$lng!==''&&is_numeric($lat)&&is_numeric($lng)&&abs((float)$lat)<=90&&abs((float)$lng)<=180);
+        $email=trim($_POST['contact_email'] ?? '');
+        if (!$coordsValid || ($email!==''&&!filter_var($email,FILTER_VALIDATE_EMAIL))) {
+            flash('Use a valid email and enter both real coordinates or neither. Coordinates are never guessed.','error');
+            redirect('owner.php?edit='.$businessId);
+        }
+        foreach (range(0,6) as $day) {
+            if (!isset($_POST['closed'][$day])) {
+                $opens=$_POST['opens'][$day] ?? ''; $closes=$_POST['closes'][$day] ?? '';
+                if (!preg_match('/^\d{2}:\d{2}$/',$opens) || !preg_match('/^\d{2}:\d{2}$/',$closes) || $opens >= $closes) {
+                    flash('Each open day needs a valid closing time after its opening time.','error');
+                    redirect('owner.php?edit='.$businessId);
+                }
+            }
+        }
         $pdo->prepare('UPDATE businesses SET name=?,description=?,contact_phone=?,contact_email=?,facebook_url=?,website=?,address=?,barangay=?,district=?,city=?,province=?,region=?,latitude=?,longitude=?,business_status=? WHERE id=? AND owner_id=?')->execute([
             trim($_POST['name']), trim($_POST['description'] ?? ''), trim($_POST['contact_phone']),
             trim($_POST['contact_email'] ?? ''), trim($_POST['facebook_url'] ?? ''), trim($_POST['website'] ?? ''),
             trim($_POST['address']), trim($_POST['barangay']), trim($_POST['district'] ?? ''),
             trim($_POST['city'] ?? '') ?: 'Davao City', trim($_POST['province'] ?? '') ?: 'Davao del Sur',
             trim($_POST['region'] ?? '') ?: 'Davao Region', $_POST['latitude'] !== '' ? $_POST['latitude'] : null,
-            $_POST['longitude'] !== '' ? $_POST['longitude'] : null, $_POST['business_status'] ?? 'open', $businessId, $u['id']
+            $_POST['longitude'] !== '' ? $_POST['longitude'] : null, in_array($_POST['business_status'] ?? '', ['open','closed','temporarily_closed'], true) ? $_POST['business_status'] : 'open', $businessId, $u['id']
         ]);
         foreach (range(0, 6) as $day) {
             $closed=isset($_POST['closed'][$day]); $opens=$_POST['opens'][$day] ?? '08:00'; $closes=$_POST['closes'][$day] ?? '17:00';
@@ -112,12 +193,46 @@ if ($edit) {
     <button class="button coral">Save business profile</button>
   </form>
 </section>
+<section class="panel danger-zone"><h2>Remove this business</h2><p>Deleting removes this listing and related services, products, hours, appointments, and directory activity. This cannot be undone.</p><form method="post" onsubmit="return confirm(&quot;Permanently remove this business and related data?&quot;)"><input type="hidden" name="csrf" value="<?= csrf() ?>"><input type="hidden" name="action" value="delete_business"><input type="hidden" name="id" value="<?= (int)$edit['id'] ?>"><label>Type <b><?= e($edit['name']) ?></b> to confirm<input required name="confirm_name" autocomplete="off"></label><button class="danger" type="submit">Delete this business</button></form></section>
 <section class="panel" id="services"><h2>Services offered</h2>
   <form method="post" class="admin-filter"><input type="hidden" name="csrf" value="<?= csrf() ?>"><input type="hidden" name="action" value="service"><input type="hidden" name="id" value="<?= $edit['id'] ?>"><input required name="service_name" placeholder="Service name"><input type="number" min="0" step=".01" name="service_price" placeholder="Price (PHP)"><input name="service_description" placeholder="Short description"><button class="button coral">Add service</button></form>
   <div class="table-wrap"><table><tr><th>Service</th><th>Price</th><th>Description</th><th></th></tr><?php foreach ($services as $service): ?><tr><td><?= e($service['name']) ?></td><td><?= $service['price']===null?'Ask':'₱'.number_format((float)$service['price'],2) ?></td><td><?= e($service['description']) ?></td><td><form method="post"><input type="hidden" name="csrf" value="<?= csrf() ?>"><input type="hidden" name="action" value="service_delete"><input type="hidden" name="id" value="<?= $edit['id'] ?>"><input type="hidden" name="service_id" value="<?= $service['service_id'] ?>"><button class="danger">Remove</button></form></td></tr><?php endforeach ?></table></div>
 </section>
 <?php
     owner_page('My business', ob_get_clean(), 'business', $firstBusiness);
+}
+
+if (($_GET['add'] ?? '') === '1') {
+    $categories = $pdo->query('SELECT id,name FROM categories WHERE active=1 ORDER BY name')->fetchAll();
+    ob_start();
+    ?>
+    <section class="panel owner-business-create">
+      <div class="panel-title"><div><p class="eyebrow">NEW BUSINESS LISTING</p><h2>Add another business</h2><p>Enter accurate public details. New listings are sent to an administrator for approval.</p></div><a class="button light" href="owner.php">Back to dashboard</a></div>
+      <form method="post" class="registration-form wide owner-create-form">
+        <input type="hidden" name="csrf" value="<?= csrf() ?>"><input type="hidden" name="action" value="create">
+        <fieldset><legend>Business details</legend><div class="form-grid">
+          <label>Business name *<input required maxlength="150" name="name" autocomplete="organization" placeholder="Business name customers know"></label>
+          <label>Category *<select required name="category_id"><option value="">Choose a category</option><?php foreach ($categories as $category): ?><option value="<?= (int)$category['id'] ?>"><?= e($category['name']) ?></option><?php endforeach ?></select></label>
+          <label class="owner-create-full">Description <span class="field-optional">Optional</span><textarea name="description" maxlength="3000" rows="4" placeholder="Describe the services or products you offer."></textarea><small>Keep it factual and useful for customers deciding whether to contact you.</small></label>
+        </div></fieldset>
+        <fieldset><legend>Contact details</legend><div class="form-grid">
+          <label>Contact number *<input required type="tel" name="contact_phone" autocomplete="tel" placeholder="Phone number"></label>
+          <label>Email <span class="field-optional">Optional</span><input type="email" name="contact_email" autocomplete="email" placeholder="name@example.com"></label>
+        </div></fieldset>
+        <fieldset><legend>Business location</legend><p class="owner-form-hint">Use the real location. Coordinates are optional and are saved only when you submit this form.</p><div class="form-grid">
+          <label>City<input value="Davao City" readonly aria-readonly="true"></label>
+          <label>Barangay *<input required maxlength="80" name="barangay" autocomplete="address-level3" placeholder="Barangay"></label>
+          <label>Street address or landmark *<input required name="address" autocomplete="street-address" placeholder="Street, building, or landmark"></label>
+          <label>District <span class="field-optional">Optional</span><input name="district" placeholder="District, if known"></label>
+          <label>Latitude <span class="field-optional">Optional</span><input type="number" step="any" inputmode="decimal" name="latitude" placeholder="Optional"></label>
+          <label>Longitude <span class="field-optional">Optional</span><input type="number" step="any" inputmode="decimal" name="longitude" placeholder="Optional"></label>
+        </div><div class="owner-create-location"><button type="button" class="button light" data-geolocate>Use my current location</button><span data-location-status role="status" aria-live="polite"></span></div></fieldset>
+        <fieldset><legend>Services</legend><label>Services offered <span class="field-optional">Optional · separate names with commas</span><input name="services" placeholder="Example: document printing, photocopying"></label><small>You can add prices and descriptions later from your business settings.</small></fieldset>
+        <div class="owner-create-submit"><p>Submitting sends this listing for admin approval. Approval and verification are separate statuses.</p><button class="button coral" type="submit">Submit for approval</button></div>
+      </form>
+    </section>
+    <?php
+    owner_page('Add a business', ob_get_clean(), 'add-business', $firstBusiness);
 }
 
 $unread = $pdo->prepare('SELECT COUNT(*) FROM messages WHERE receiver_id=? AND read_at IS NULL');
@@ -135,7 +250,7 @@ ob_start();
 <section class="admin-grid stats-grid owner-stats"><article><b><?= $metrics['views'] ?></b><span>Profile views</span></article><article><b><?= $metrics['favorites'] ?></b><span>Favorites</span></article><article><b><?= $metrics['inquiries'] ?></b><span>Inquiries</span></article><article><b><?= $reviewCount ?></b><span>Total reviews</span></article><article><b><?= number_format($rating,1) ?></b><span>Average rating</span></article><article><b><?= $metrics['approved'] ?>/<?= $metrics['rejected'] ?></b><span>Approved / rejected</span></article></section>
 <section class="panel"><h2>Analytics</h2><p><?= $mostViewed ? 'Most viewed business: '.e($mostViewed['name']).' ('.$mostViewed['views'].' views)' : 'Analytics will appear when customers visit your profiles.' ?></p><div class="activity-list"><?php foreach($recent as $x):?><p><b><?=e($x['action'])?></b> — <?=e($x['details'])?><small><?=e($x['created_at'])?></small></p><?php endforeach;if(!$recent):?><p>No recent owner activity yet.</p><?php endif?></div></section>
 <section class="panel"><div class="panel-title"><div><h2>Profile completion</h2><p><?= $completion ?>% complete<?= $completion===100 ? ' — your customer-facing profile is complete.' : ' — add your first business listing.' ?></p></div><b class="completion"><?= $completion ?>%</b></div><div class="progress"><span style="width:<?= $completion ?>%"></span></div></section>
-<section class="panel"><div class="panel-title"><h2>My listings</h2><a class="button coral" href="index.php?page=business-form">Add another business</a></div><div class="table-wrap"><table><tr><th>Business</th><th>Category</th><th>Status</th><th>Products</th><th>Services</th><th>Action</th></tr><?php foreach ($businesses as $business): ?><tr><td><b><?= e($business['name']) ?></b><small><?= e($business['barangay']) ?>, Davao City</small></td><td><?= e($business['category']) ?></td><td><span class="status <?= e($business['status']) ?>"><?= e($business['status']) ?></span></td><td><?= $business['products'] ?></td><td><?= $business['services'] ?></td><td><a class="link-button" href="owner.php?edit=<?= $business['id'] ?>">Manage</a></td></tr><?php endforeach ?></table></div></section>
+<section class="panel"><div class="panel-title"><h2>My listings</h2><a class="button coral" href="owner.php?add=1">Add another business</a></div><form method="post" onsubmit="return confirm(&quot;Remove all selected business listings and their related content? This cannot be undone.&quot;)"><input type="hidden" name="csrf" value="<?= csrf() ?>"><input type="hidden" name="action" value="bulk_delete_businesses"><div class="table-wrap"><table><tr><th><input type="checkbox" data-select-all="business_ids[]" aria-label="Select all businesses"></th><th>Business</th><th>Category</th><th>Status</th><th>Products</th><th>Services</th><th>Action</th></tr><?php foreach ($businesses as $business): ?><tr><td><input type="checkbox" name="business_ids[]" value="<?= (int)$business['id'] ?>" aria-label="Select <?= e($business['name']) ?>"></td><td><b><?= e($business['name']) ?></b><?php if((bool)$business['is_demo']):?><small>Fictional demo sample</small><?php endif?><small><?= e($business['barangay']) ?>, Davao City</small></td><td><?= e($business['category']) ?></td><td><span class="status <?= e($business['status']) ?>"><?= e($business['status']) ?></span></td><td><?= $business['products'] ?></td><td><?= $business['services'] ?></td><td><a class="link-button" href="owner.php?edit=<?= $business['id'] ?>">Manage</a></td></tr><?php endforeach ?></table></div><?php if ($businesses): ?><button class="danger" type="submit">Remove selected businesses</button><?php endif ?></form></section>
 <section class="panel" id="profile"><h2>Account settings</h2><form method="post" class="registration-form wide"><input type="hidden" name="csrf" value="<?= csrf() ?>"><input type="hidden" name="action" value="profile"><div class="form-grid"><label>Full name<input required name="name" value="<?= e($u['name']) ?>"></label><label>Email<input required type="email" name="email" value="<?= e($u['email']) ?>"></label></div><button class="button dark">Save settings</button></form></section>
 <?php
 owner_page('Welcome back, '.explode(' ', $u['name'])[0].'.', ob_get_clean(), 'dashboard', $firstBusiness);

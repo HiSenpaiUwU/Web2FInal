@@ -2,9 +2,6 @@
 // Repeat-safe demo dataset. It uses the application's existing tables and never deletes data.
 if (!function_exists('seed_demo_businesses')) {
 function seed_demo_businesses(PDO $pdo): int {
-    // Older versions generated synthetic coordinates. Demo records are intentionally left unmapped
-    // until an owner/admin supplies a real Davao City location.
-    $pdo->exec("UPDATE businesses SET latitude=NULL, longitude=NULL WHERE contact_email LIKE '%@demo.local' AND address LIKE 'Demo Address,%'");
     $ownerEmail = 'demo.owner@davaolocal.test';
     $customerEmail = 'demo.customer@davaolocal.test';
     $pdo->prepare('INSERT IGNORE INTO users(role_id,name,email,password_hash) VALUES(2,?,?,?)')->execute(['Davao Demo Owner',$ownerEmail,password_hash('DemoOwner123!', PASSWORD_DEFAULT)]);
@@ -19,7 +16,7 @@ function seed_demo_businesses(PDO $pdo): int {
       ['Local Bites Food Stall','Food & Beverage','Quick, affordable merienda and lunch meals.','Sasa','Buhangin','Snacks,Rice meals,Delivery,Party trays','07:00','19:00'],
       ["Nanay's Homemade Meals",'Food & Beverage','Home-cooked Filipino dishes for busy families.','Bangkal','Talomo','Daily ulam,Family trays,Pre-order meals,Delivery','06:00','18:00'],
       ['Corner Grill House','Food & Beverage','Casual grill house for friends and family.','Toril','Toril','Grilled chicken,Pork barbecue,Seafood,Takeout','11:00','23:00'],
-      ['Bahay Kape Café','Food & Beverage','A quiet neighborhood coffee shop with local beans.','Maa','Talomo','Espresso,Coffee beans,Pastries,Study space','07:00','21:00'],
+      ['Bahay Kape CafÃ©','Food & Beverage','A quiet neighborhood coffee shop with local beans.','Maa','Talomo','Espresso,Coffee beans,Pastries,Study space','07:00','21:00'],
       ['Fresh Cup Coffee','Food & Beverage','Iced coffee and made-to-order drinks.','Poblacion','Poblacion','Cold brew,Milk tea,Pastries,Delivery','08:00','20:00'],
       ['Morning Brew Davao','Food & Beverage','Fresh coffee for early risers and remote workers.','Bajada','Poblacion','Espresso,Breakfast,Wi-Fi,Takeout','06:30','19:00'],
       ['QuickFix Electronics','Electronics','Dependable repairs for household electronics.','Agdao','Poblacion','Diagnostics,TV repair,Appliance repair,Parts replacement','09:00','18:00'],
@@ -56,7 +53,7 @@ function seed_demo_businesses(PDO $pdo): int {
     $added=0; $n=1;
     foreach($data as $row){[$name,$category,$description,$barangay,$district,$serviceList,$opens,$closes]=$row; if(!isset($categories[$category])){$pdo->prepare('INSERT INTO categories(name) VALUES(?)')->execute([$category]);$categories[$category]=(int)$pdo->lastInsertId();}$check=$pdo->prepare('SELECT id FROM businesses WHERE name=? LIMIT 1');$check->execute([$name]);if($check->fetchColumn())continue;
       $status=$n%11===0?'pending':'approved';$lat=null;$lng=null;
-      $pdo->prepare('INSERT INTO businesses(owner_id,category_id,name,description,contact_phone,contact_email,address,barangay,district,city,latitude,longitude,status,verified_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$owner,$categories[$category],$name,$description,'0917 555 '.str_pad((string)(1100+$n),4,'0',STR_PAD_LEFT),strtolower(str_replace([' ','&'],['',''],$name)).'@demo.local','Demo Address, '.$barangay,$barangay,$district,'Davao City',$lat,$lng,$status,$status==='approved'?date('Y-m-d H:i:s'):null]);
+      $pdo->prepare('INSERT INTO businesses(owner_id,category_id,name,description,contact_phone,contact_email,address,barangay,district,city,latitude,longitude,status,verified_at,is_demo) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)')->execute([$owner,$categories[$category],$name,$description,'0917 555 '.str_pad((string)(1100+$n),4,'0',STR_PAD_LEFT),strtolower(str_replace([' ','&'],['',''],$name)).'@demo.local','Demo Address, '.$barangay,$barangay,$district,'Davao City',$lat,$lng,$status,null]);
       $id=(int)$pdo->lastInsertId();foreach(explode(',',$serviceList) as $service){$service=trim($service);$pdo->prepare('INSERT IGNORE INTO services(name) VALUES(?)')->execute([$service]);$x=$pdo->prepare('SELECT id FROM services WHERE name=?');$x->execute([$service]);$pdo->prepare('INSERT INTO business_services(business_id,service_id) VALUES(?,?)')->execute([$id,$x->fetchColumn()]);}
       for($day=0;$day<7;$day++)$pdo->prepare('INSERT INTO business_hours(business_id,day_of_week,opens,closes,is_closed) VALUES(?,?,?,?,?)')->execute([$id,$day,$opens,$closes,$day===0]);
       if($status==='approved'){$pdo->prepare('INSERT INTO reviews(business_id,user_id,rating,comment) VALUES(?,?,?,?)')->execute([$id,$customer,($n%2?5:4),$n%2?'Fast service and good quality. Great local option.':'Affordable, convenient, and friendly service.']);}
@@ -67,6 +64,7 @@ function seed_demo_businesses(PDO $pdo): int {
 
 if (basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'] ?? '')) {
     require __DIR__ . '/config.php';
-    try { $count=seed_demo_businesses(db()); echo '<h1>Demo businesses added</h1><p>'.$count.' new records were added. Existing records were kept.</p><p><a href="index.php?page=directory">View directory</a></p>'; }
+    require_once __DIR__ . '/database_upgrade.php';
+    try { $pdo=db(); apply_database_upgrade($pdo); $count=seed_demo_businesses($pdo); echo '<h1>Demo businesses added</h1><p>'.$count.' new records were added. Existing records were kept.</p><p><a href="index.php?page=directory">View directory</a></p>'; }
     catch(Throwable $e){http_response_code(500);echo '<h1>Could not seed data</h1><p>'.e($e->getMessage()).'</p><p>Start MySQL and run setup.php first.</p>';}
 }

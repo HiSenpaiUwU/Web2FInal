@@ -12,6 +12,9 @@ function apply_database_upgrade(PDO $pdo): void {
     if (!$has('businesses','business_status')) $pdo->exec("ALTER TABLE businesses ADD business_status ENUM('open','closed','temporarily_closed') NOT NULL DEFAULT 'open' AFTER status");
     if (!$has('businesses','is_verified')) $pdo->exec('ALTER TABLE businesses ADD is_verified BOOLEAN NOT NULL DEFAULT FALSE AFTER verified_at');
     if (!$has('businesses','logo_path')) $pdo->exec('ALTER TABLE businesses ADD logo_path VARCHAR(255) NULL AFTER is_verified');
+    if (!$has('businesses','is_demo')) $pdo->exec('ALTER TABLE businesses ADD is_demo BOOLEAN NOT NULL DEFAULT FALSE AFTER is_verified');
+    // Mark only the known seeded fixtures; do not infer demo status from ordinary owner data.
+    $pdo->exec("UPDATE businesses b JOIN users u ON u.id=b.owner_id SET b.is_demo=1 WHERE b.is_demo=0 AND (b.contact_email LIKE '%@demo.local' OR b.contact_email LIKE '%@%.test' OR b.address LIKE 'Demo Address,%' OR (b.name='Maria\'s Printing Services' AND b.contact_email='maria@example.test'))");
     if (!$has('reviews','updated_at')) $pdo->exec('ALTER TABLE reviews ADD updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP AFTER created_at');
     if (!$has('notifications','link_url')) $pdo->exec('ALTER TABLE notifications ADD link_url VARCHAR(255) NULL AFTER message');
     if (!$has('notifications','type')) $pdo->exec("ALTER TABLE notifications ADD type VARCHAR(40) NOT NULL DEFAULT 'general' AFTER link_url");

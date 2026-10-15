@@ -1,0 +1,87 @@
+DAVAO LOCAL DIRECTORY - PROJECT DEFENSE NOTES
+============================================================
+
+Use this as a guide. Describe the app honestly and identify all sample data as fictional.
+
+1. PROJECT INTRODUCTION
+-----------------------
+Davao Local is a PHP and MySQL web application for browsing local business listings. It has public directory pages, customer accounts, owner listing tools, and an administrator review workflow. PHP renders pages and processes forms; MySQL stores the persistent records; HTML, CSS, and JavaScript build the browser interface.
+
+2. IMPLEMENTED APPLICATION FLOWS
+---------------------------------
+PUBLIC
+- Home page, directory search and filters, and business profiles.
+- Search matches business names, descriptions, product names, and service names. Area and category are separate filters.
+- “Open now” requires both the current Manila-time schedule and the owner's status being Open.
+- The map uses Leaflet and OpenStreetMap tiles. It displays approved, non-sample listings with valid saved coordinates as markers that open their profiles. No coordinates are guessed. When there are no mapped listings, the page explains why and links to the directory.
+
+CUSTOMER
+- Register and sign in as a customer.
+- Save/remove a favorite, post/update a review, submit an inquiry, and continue that inquiry in Messages.
+- Request appointments and view appointment history.
+
+OWNER
+- Submit a listing. A new listing remains pending and does not appear publicly until an administrator approves it.
+- Edit listing details and hours; manage services, products, gallery images, messages, reviews, and appointment requests.
+
+ADMINISTRATOR
+- Review pending listings and approve/reject them.
+- Set or remove verification separately from approval.
+- Manage accounts, categories, reviews, reports, and activity.
+
+3. DATA ACCURACY
+----------------
+Bundled sample listings and demo accounts are fictional. They use placeholder contact data and are marked “Fictional demo” in public listings and profiles. Sample records are not evidence that a business exists, is open, has a real address, or has been verified. “Approved” means approved for directory publication; “Verified” is a separate admin-set label.
+
+Coordinates are never generated for listings. A map marker appears only when an approved, non-sample listing has valid coordinates entered by an owner or administrator. OSM tiles need internet access; the page provides profile links and directory fallback when map resources or location access fail.
+
+4. DATABASE AND SETUP
+---------------------
+The app uses the `davao_local_directory` database configured in `config.php`. For a fresh XAMPP setup, start Apache and MySQL, visit `http://localhost/Web2Final-main/setup.php`, then open `http://localhost/Web2Final-main/`. Existing installations should use `upgrade.php` for repeat-safe schema additions. Setup does not drop or reset existing tables and does not reset account passwords.
+
+Fresh local classroom credentials:
+- Admin: admin@davaolocal.test / Admin123!
+- Owner: owner@davaolocal.test / Owner123!
+- Demo customer: demo.customer@davaolocal.test / DemoCustomer123!
+
+These credentials are for local demonstration only. Existing installations may have different passwords.
+
+5. FILE GUIDE
+-------------
+- `index.php`: public home, directory, profile, registration/login, actions, and map page.
+- `config.php`: sessions, PDO connection, shared helpers, and security utilities.
+- `schema.sql`: repeat-safe initial table definitions.
+- `database_upgrade.php`: repeat-safe schema migration.
+- `setup.php`: fresh local setup and sample-data initialization.
+- `demo_seed.php`: repeat-safe fictional sample listings.
+- `customer.php`, `messages.php`, `appointments.php`: customer workflows.
+- `owner.php`, `products.php`, `business_gallery.php`: owner workflows.
+- `admin.php`: administrator approval and management.
+
+6. TEST STATUS AND LIMITATIONS
+------------------------------
+The project was exercised through the local Apache/PHP application and its connected MySQL database. PHP syntax checks passed for all PHP files after the changes.
+
+Tested locally:
+- Home, directory search, login, registration, business profile, Map, owner dashboard, administrator dashboard, Messages, and Appointments returned successfully.
+- Search for a listing -> opened its profile.
+- Customer registration/login -> favorite a listing -> post a clearly fictional review -> send an inquiry that opens a private conversation -> owner replies -> customer sees the reply.
+- Owner login -> submit a fictional listing (it started pending) -> edit hours and owner status.
+- Admin login -> approve the pending listing -> mark and remove verification while approval remained approved.
+- Customer requests an appointment -> owner confirms it.
+- Map route renders its OpenStreetMap/Leaflet configuration, mapped-list links, and empty-map fallback.
+- Existing rows stayed present: the original users, businesses, inquiries, messages, and appointment remained. Workflow records added for this test are clearly fictional and retained; no database reset or row deletion was performed.
+
+Map test limitation: this database has no approved, non-sample listing with trustworthy Davao coordinates. Its older `.test` sample record has an out-of-area coordinate and is now labeled as sample data, so it is intentionally not shown as a Davao marker. The map therefore displays the no-mapped-listings fallback. The test host could not reach the Leaflet CDN or OSM tile server, so a real tile display and physical marker click could not be verified here. On a connected browser, tiles are needed; the profile links and directory remain available if map resources fail.
+
+The test database now includes a fictional workflow customer (`classroom.customer@davaolocal.test`) and an approved fictional workflow listing. Do not describe those as real businesses or real reviews. Before a classroom presentation, ensure Apache/MySQL are running and confirm the map journey using a genuine approved listing with actual owner/admin-supplied coordinates.
+7. SUGGESTED CLASSROOM DEMONSTRATION
+------------------------------------
+1. Start Apache and MySQL and open `http://localhost/Web2Final-main/`.
+2. Search for a fictional sample listing and open its profile.
+3. Sign in as the demo customer; save a listing, post a clearly sample-only review, and send an inquiry that opens Messages.
+4. Sign in as the owner and submit a clearly fictional test listing. Show that it is pending.
+5. Sign in as admin and approve the pending listing. Show that approval does not automatically mark it verified.
+6. Open the Map page. Explain that it shows only approved, non-sample records with real coordinates entered by an owner/admin. If none exist, use the directory fallback.
+
+Do not claim a journey was live-tested unless you completed it in the local browser with MySQL running.

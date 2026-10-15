@@ -17,7 +17,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 // Load shared presentation behavior without altering any existing page templates.
 if (PHP_SAPI !== 'cli') {
     ob_start(function (string $html): string {
-        if (stripos($html, '</head>') !== false) $html = str_ireplace('</head>', '<link rel="stylesheet" href="ui.css"><link rel="stylesheet" href="location.css"><link rel="stylesheet" href="profile.css"><link rel="stylesheet" href="chat.css"><link rel="stylesheet" href="customer.css"><script defer src="ui.js"></script><script defer src="chat.js"></script><script defer src="messages.js"></script></head>', $html);
+        if (stripos($html, '</head>') !== false) $html = str_ireplace('</head>', '<link rel="stylesheet" href="ui.css"><link rel="stylesheet" href="location.css"><link rel="stylesheet" href="profile.css"><link rel="stylesheet" href="chat.css"><link rel="stylesheet" href="customer.css"><link rel="stylesheet" href="app-polish.css"><script defer src="ui.js"></script><script defer src="chat.js"></script><script defer src="messages.js"></script></head>', $html);
         return $html;
     });
 }

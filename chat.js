@@ -58,12 +58,24 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   const appendText = (parent, text) => {
     // Render a small safe Markdown subset; all ordinary content remains text.
-    const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|https?:\/\/[^\s<]+)/g;
+    const pattern = /(\[[^\]]+\]\([^)]+\)|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|https?:\/\/[^\s<]+)/g;
     let cursor = 0;
     for (const match of text.matchAll(pattern)) {
       parent.append(document.createTextNode(text.slice(cursor, match.index)));
       const token = match[0];
-      if (token.startsWith('`')) {
+      if (token.startsWith('[')) {
+        const linkMatch = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+        if (linkMatch) {
+          try {
+            const url = new URL(linkMatch[2], location.href);
+            if (url.protocol === 'http:' || url.protocol === 'https:') {
+              const link = document.createElement('a'); link.href = url.href; link.textContent = linkMatch[1];
+              if (url.origin !== location.origin) { link.target = '_blank'; link.rel = 'noopener noreferrer'; }
+              parent.append(link);
+            } else parent.append(document.createTextNode(token));
+          } catch { parent.append(document.createTextNode(token)); }
+        } else parent.append(document.createTextNode(token));
+      } else if (token.startsWith('`')) {
         const code = document.createElement('code'); code.textContent = token.slice(1, -1); parent.append(code);
       } else if (token.startsWith('**')) {
         const strong = document.createElement('strong'); strong.textContent = token.slice(2, -2); parent.append(strong);
