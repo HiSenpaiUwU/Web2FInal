@@ -1,0 +1,70 @@
+Davao Local Directory Map
+System Information, Programmer Notes, and Analyst Q&A
+
+SYSTEM OVERVIEW
+
+Davao Local is a PHP business directory with an interactive Leaflet map. The map displays eligible business listings using the coordinates saved for each listing. Visitors can also request their device's current location using the "Use my location" control.
+
+HOW LOCATION WORKS
+
+1. The browser requests permission to share location with the site.
+2. If permission is allowed, the page requests coordinates from the browser's Geolocation API.
+3. The map checks the coordinates and the accuracy reported by the device before showing a "Your Current Location" marker.
+4. If the browser does not provide a sufficiently accurate reading, the map remains on its Davao fallback view and does not claim that Davao is the visitor's detected location.
+
+A web page cannot override a denied browser permission. A reading with very large uncertainty, such as +/- 200 km, is not precise enough to locate a visitor in Davao.
+
+MAP BEHAVIOR AND LIMITS
+
+- The map uses Leaflet and OpenStreetMap tiles.
+- Business markers come from approved Davao City listings with usable saved coordinates.
+- The map is constrained to a Davao area.
+- Location accuracy depends on the device and its location services. A computer without GPS may only provide a rough estimate.
+- Localhost supports browser location during development. A deployed website must use HTTPS.
+- The map requires an internet connection to load OpenStreetMap tiles.
+
+PROGRAMMER NOTES
+
+- Map implementation: index.php.
+- The existing Leaflet map instance is reused.
+- Browser location is requested with navigator.geolocation.getCurrentPosition().
+- The request asks for high accuracy. Rough readings are not labeled as the visitor's current location.
+- Location attempts have a timeout so the interface does not remain stuck loading.
+- The developer console logs returned coordinates, accuracy, and geolocation errors.
+- PHP and inline JavaScript syntax checks passed; the local map page returned HTTP 200 at the time of verification.
+
+SYSTEM ANALYST NOTES
+
+Precise location depends on these conditions:
+
+1. The visitor allows location access for the site in the browser.
+2. Operating system location services are enabled.
+3. The device can provide a sufficiently accurate position.
+
+If any condition fails, the application cannot reliably identify the visitor's current location. The Davao fallback is only the map's starting view; it is not the visitor's detected position.
+
+QUESTIONS AND ANSWERS
+
+Q: Why did the map show Cagayan de Oro?
+A: The browser or device supplied an estimate that appeared near Cagayan de Oro. The map cannot independently verify that estimate against the visitor's real position. The current logic rejects readings whose reported accuracy is too rough.
+
+Q: Why does the system say location permission was denied?
+A: Edge has blocked location for localhost. Enabling Windows Location Services does not automatically grant Edge permission to share location with this site.
+
+Q: Can the application bypass that denial?
+A: No. A web page cannot grant itself browser permission or obtain precise browser coordinates after permission is denied.
+
+Q: How can I allow location in Edge?
+A: Open the site controls icon beside localhost, open "Permissions for this site," set Location to Allow, and reload the map. Also check Windows Settings > Privacy & security > Location.
+
+Q: What happens if permission remains blocked?
+A: The map remains on its Davao fallback view. Without browser coordinates, the application cannot place a truthful current-location marker.
+
+Q: Will IP geolocation solve this accurately?
+A: No. IP geolocation is an estimate and can identify the wrong city. It is not a reliable replacement for device location.
+
+Q: What does the manual pin do?
+A: It lets a visitor choose a point on the map. It is a user-selected point, not an automatically detected location.
+
+Q: What is required for deployment?
+A: Deploy over HTTPS, request location permission from visitors, and explain how the location is used.

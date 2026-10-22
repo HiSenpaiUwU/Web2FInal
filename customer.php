@@ -46,8 +46,8 @@ $customerCssVersion = filemtime(__DIR__ . '/customer.css');
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
 </head>
 <body>
+  <?php customer_nav($unreadMessages, 'dashboard'); ?>
   <main class="admin-main standalone customer-dashboard">
-    <?php customer_nav($unreadMessages, 'dashboard'); ?>
     <header class="customer-hero">
       <p class="eyebrow">CUSTOMER DASHBOARD</p>
       <h1>Welcome back, <?= e(explode(' ', $u['name'])[0]) ?>.</h1>
@@ -89,5 +89,6 @@ $customerCssVersion = filemtime(__DIR__ . '/customer.css');
       </section>
     </div>
   </main>
+  <script src="ui.js"></script><script>(function(){const nav=document.getElementById('customer-navigation'),links=nav?nav.querySelectorAll('a'):[];function savedState(){const isSaved=location.hash==='#saved';links.forEach(function(link){if(link.getAttribute('href')==='customer.php#saved')link.classList.toggle('active',isSaved);if(isSaved&&link.getAttribute('href')==='customer.php')link.classList.remove('active');});}savedState();window.addEventListener('hashchange',savedState);})();</script>
 </body>
 </html>
